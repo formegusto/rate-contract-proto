@@ -1,7 +1,5 @@
 import datetime as dt
 import pandas as pd
-from src.rate_table import COMPREHENSIVE_HOUSEHOLD_RATE_TABLE, SINGLE_RATE_TABLE
-from src.objects import *
 
 # set kepco fee
 KEPCO_FEE = {
@@ -38,17 +36,3 @@ for idx, _ in enumerate(peak_month):
         peak_year += 1
 
 PEAK_DF.index = peak_date
-
-# set household
-household_name = ["{}01 호".format(_) for _ in range(1, 11)]
-household_kwh = [150, 180, 220, 210, 310, 300, 270, 190, 250, 260]
-
-
-def get_const_households(rate_type):
-    CONST_HOUSEHOLDS = list()
-    rate_table = COMPREHENSIVE_HOUSEHOLD_RATE_TABLE if rate_type == "종합계약" else SINGLE_RATE_TABLE
-    for idx, kwh in enumerate(household_kwh):
-        CONST_HOUSEHOLDS.append(
-            HOUSEHOLD(name=household_name[idx], kwh=kwh, rate_table=rate_table))
-
-    return CONST_HOUSEHOLDS

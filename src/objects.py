@@ -8,7 +8,6 @@ from src.datas import KEPCO_FEE
 # set common
 skip_calc = ["사용량 (kwh)"]
 bill_step = ['전기요금계', '4사 5입', '전력산업기반기금 (절사)']
-peak_df = PEAK_DF
 
 # set household
 household_name = ["{}01 호".format(_) for _ in range(1, 11)]
@@ -16,7 +15,7 @@ household_kwh = [150, 180, 220, 210, 310, 300, 270, 190, 250, 260]
 
 
 class HOUSEHOLD:
-    def __init__(self, rate_table, name="", kwh=0):
+    def __init__(self, rate_table, name="", kwh=0, ):
         self.name = name
         self.kwh = kwh
         self.rate_table = rate_table
@@ -57,11 +56,15 @@ def get_const_households(rate_type):
 
 
 class MGMTOFFICE:
-    def __init__(self, rate_type, APT_METER=3000):
+    def __init__(self, rate_type, households=None, now_month=2, APT_METER=3000, peak_df=PEAK_DF):
         self.rate_contract = ComprehensiveContract(
-        ) if rate_type == "종합계약" else SingleContract()
+            peak_df=peak_df,
+            now_month=now_month
+        ) if rate_type == "종합계약" else SingleContract(now_month=now_month)
         self.APT_METER = APT_METER
-        self.households = get_const_households(rate_type=rate_type)
+        self.households = get_const_households(
+            rate_type=rate_type) if households == None else households
+        self.now_month = now_month
 
     def __repr__(self) -> str:
         return "########## 관리사무소 ##########\n" +\
@@ -75,8 +78,9 @@ class MGMTOFFICE:
 
 
 class RATECONTRACT:
-    def __init__(self, rate_type):
+    def __init__(self, rate_type, now_month):
         self.rate_type = rate_type
+        self.now_month = now_month
         if rate_type == "종합계약":
             self.rate_table = COMPREHENSIVE_RATE_TABLE
         else:
@@ -98,22 +102,24 @@ class RATECONTRACT:
 
 
 class PUBLIC:
-    def __init__(self, apt_meter, rate_type, kwh):
+    def __init__(self, apt_meter, rate_type, kwh, peak_df, now_month):
         self.apt_meter = apt_meter
         self.maximum_power_demand = None
         self.kwh = kwh
         self.rate_type = rate_type
         self.rate_table = COMPREHENSIVE_PUBLIC_RATE_TABLE if rate_type == "종합계약" else SINGLE_RATE_TABLE
+        self.peak_df = peak_df
+        self.now_month = now_month
 
     def calc_meter(self):
         if self.rate_type == "종합계약":
-            peak_calc_month = [1, 2, 7, 8, 9, 12]
+            peak_calc_month = [1, 2, 7, 8, 9, 12] + [self.now_month]
             peak_calc_index = list()
-            for _ in peak_df.index:
+            for _ in self.peak_df.index:
                 if (_.month in peak_calc_month):
                     peak_calc_index.append(_)
 
-            self.maximum_power_demand = peak_df.loc[peak_calc_index]['peak (kW)'].max(
+            self.maximum_power_demand = self.peak_df.loc[peak_calc_index]['peak (kW)'].max(
             )
 
         self.fee_dict = {
@@ -142,8 +148,9 @@ class PUBLIC:
 
 
 class ComprehensiveContract(RATECONTRACT):
-    def __init__(self):
-        super().__init__(rate_type="종합계약")
+    def __init__(self, now_month, peak_df=PEAK_DF):
+        super().__init__(rate_type="종합계약", now_month=now_month)
+        self.peak_df = peak_df
 
     def calc_meter(self, households, apt_meter):
         bill = super().calc_meter(households)
@@ -160,7 +167,9 @@ class ComprehensiveContract(RATECONTRACT):
         public_row_name = "[2월] 공동사용설비요금"
         public_dict = PUBLIC(rate_type=self.rate_type,
                              apt_meter=apt_meter,
-                             kwh=(apt_meter - households_kwh)).calc_meter()
+                             kwh=(apt_meter - households_kwh),
+                             peak_df=self.peak_df,
+                             now_month=self.now_month).calc_meter()
         bill = bill.append(
             pd.Series(public_dict, name=public_row_name)
         )
@@ -173,8 +182,8 @@ class ComprehensiveContract(RATECONTRACT):
             pd.Series(all_sum_dict, name="[2월] 관리사무소 청구서")
         )
 
-        public_bill = bill.loc[public_row_name]['청구금액 (절사)'] / len(
-            households)
+        public_bill = round(bill.loc[public_row_name]['청구금액 (절사)'] / len(
+            households))
         bill['공동전기사용료'] = [public_bill for _ in range(
             0, len(households))] + ["-", "-", "-"]
 
@@ -185,8 +194,8 @@ class ComprehensiveContract(RATECONTRACT):
 
 
 class SingleContract(RATECONTRACT):
-    def __init__(self):
-        super().__init__(rate_type="단일계약")
+    def __init__(self, now_month):
+        super().__init__(rate_type="단일계약", now_month=now_month)
 
     def calc_all_meter(self):
         self.fee_dict = dict()
@@ -250,8 +259,8 @@ class SingleContract(RATECONTRACT):
             pd.Series(all_dict, name=mgmt_bill_name)
         )
 
-        public_bill = bill.loc[public_row_name]['청구금액 (절사)'] / len(
-            households)
+        public_bill = round(bill.loc[public_row_name]['청구금액 (절사)'] / len(
+            households))
         bill['공동전기사용료'] = [public_bill for _ in range(
             0, len(households))] + ["-", "-", "-"]
 
@@ -324,9 +333,9 @@ def BASIC_PUBLIC(self):
     if self.maximum_power_demand != None:
         charge_applied_power = self.maximum_power_demand *\
             (self.kwh / self.apt_meter)
-        return self.rate_table[
+        return int(self.rate_table[
             self.rate_table['max kWh'] >= self.kwh
-        ]['basic'].iloc[0] * charge_applied_power
+        ]['basic'].iloc[0] * charge_applied_power)
     else:
         return self.rate_table[
             self.rate_table['max kWh'] >= self.kwh

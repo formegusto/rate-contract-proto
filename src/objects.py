@@ -1,3 +1,4 @@
+from numpy.core.numeric import full
 from src.datas import PEAK_DF
 from src.rate_table import COMPREHENSIVE_PUBLIC_RATE_TABLE, COMPREHENSIVE_RATE_TABLE, SINGLE_RATE_TABLE, COMPREHENSIVE_HOUSEHOLD_RATE_TABLE
 import math
@@ -12,6 +13,37 @@ peak_df = PEAK_DF
 # set household
 household_name = ["{}01 호".format(_) for _ in range(1, 11)]
 household_kwh = [150, 180, 220, 210, 310, 300, 270, 190, 250, 260]
+
+
+class HOUSEHOLD:
+    def __init__(self, rate_table, name="", kwh=0):
+        self.name = name
+        self.kwh = kwh
+        self.rate_table = rate_table
+
+    def calc_meter(self):
+        self.fee_dict = {
+            "사용량 (kwh)": self.kwh,
+            "기본요금": self.basic,
+            "전력량요금": self.electricity_rate,
+            "기후환경요금": self.env_fee,
+            "연료비조정액": self.fuel_cost,
+            "필수사용량보장공제": self.deduction,
+        }
+
+        self.fee = 0
+        for _ in self.fee_dict.keys():
+            if _ in skip_calc:
+                continue
+            self.fee += self.fee_dict[_]
+
+        self.fee_dict['전기요금계'] = self.fee
+        self.fee_dict['부가세'] = self.vat
+        self.fee_dict['4사 5입'] = self.vat_process
+        self.fee_dict['전력산업기반기금'] = self.infra_fund
+        self.fee_dict['전력산업기반기금 (절사)'] = self.infra_fund_process
+        self.fee_dict['청구금액'] = self.bill
+        self.fee_dict['청구금액 (절사)'] = self.bill_process
 
 
 def get_const_households(rate_type):
@@ -56,7 +88,7 @@ class RATECONTRACT:
 
     def calc_meter(self, households):
         bill = pd.DataFrame(columns=['사용량 (kwh)', '기본요금', '전력량요금', '기후환경요금', '연료비조정액', '필수사용량보장공제', '전기요금계',
-                                     '부가세', '4사 5입'	, '전력산업기반기금', '전력산업기반기금 (절사)', '청구금액', '최종청구금액 (절사)'])
+                                     '부가세', '4사 5입'	, '전력산업기반기금', '전력산업기반기금 (절사)', '청구금액', '청구금액 (절사)'])
         for _ in households:
             _.calc_meter()
             bill = bill.append(_.fee_dict, ignore_index=True)
@@ -104,7 +136,7 @@ class PUBLIC:
         self.fee_dict['전력산업기반기금'] = self.infra_fund
         self.fee_dict['전력산업기반기금 (절사)'] = self.infra_fund_process
         self.fee_dict['청구금액'] = self.bill
-        self.fee_dict['최종청구금액 (절사)'] = self.bill_process
+        self.fee_dict['청구금액 (절사)'] = self.bill_process
 
         return self.fee_dict
 
@@ -132,7 +164,6 @@ class ComprehensiveContract(RATECONTRACT):
         bill = bill.append(
             pd.Series(public_dict, name=public_row_name)
         )
-        bill.fillna(0)
 
         all_sum_dict = dict()
         all_sum_list = [sum_row_name, public_row_name]
@@ -142,34 +173,35 @@ class ComprehensiveContract(RATECONTRACT):
             pd.Series(all_sum_dict, name="[2월] 관리사무소 청구서")
         )
 
-        public_bill = bill.loc[public_row_name]['최종청구금액 (절사)'] / len(
+        public_bill = bill.loc[public_row_name]['청구금액 (절사)'] / len(
             households)
         bill['공동전기사용료'] = [public_bill for _ in range(
             0, len(households))] + ["-", "-", "-"]
 
-        return pd.concat([bill])
+        bill['최종청구금액'] = [public_bill + bill.iloc[_]['청구금액 (절사)'] for _ in range(
+            0, len(households))] + ["-", "-", "-"]
+
+        return bill.fillna(0)
 
 
 class SingleContract(RATECONTRACT):
     def __init__(self):
         super().__init__(rate_type="단일계약")
 
+    def calc_all_meter(self):
+        self.fee_dict = dict()
 
-class HOUSEHOLD:
-    def __init__(self, rate_table, name="", kwh=0):
-        self.name = name
-        self.kwh = kwh
-        self.rate_table = rate_table
-
-    def calc_meter(self):
+        # mean kwh
+        self.kwh = int(self.apt_meter / self.household_length)
         self.fee_dict = {
-            "사용량 (kwh)": self.kwh,
-            "기본요금": self.basic,
-            "전력량요금": self.electricity_rate,
-            "기후환경요금": self.env_fee,
-            "연료비조정액": self.fuel_cost,
-            "필수사용량보장공제": self.deduction,
+            "사용량 (kwh)": self.apt_meter,
+            "기본요금": int(self.basic * self.household_length),
+            "전력량요금": self.electricity_rate * self.household_length,
         }
+
+        self.kwh = self.apt_meter
+        self.fee_dict["기후환경요금"] = self.env_fee
+        self.fee_dict["연료비조정액"] = self.fuel_cost
 
         self.fee = 0
         for _ in self.fee_dict.keys():
@@ -183,7 +215,50 @@ class HOUSEHOLD:
         self.fee_dict['전력산업기반기금'] = self.infra_fund
         self.fee_dict['전력산업기반기금 (절사)'] = self.infra_fund_process
         self.fee_dict['청구금액'] = self.bill
-        self.fee_dict['최종청구금액 (절사)'] = self.bill_process
+        self.fee_dict['청구금액 (절사)'] = self.bill_process
+
+        return self.fee_dict
+
+    def calc_meter(self, households, apt_meter):
+        self.household_length = len(households)
+        self.apt_meter = apt_meter
+        bill = super().calc_meter(households)
+        households_sum_dict = dict()
+        for _ in bill:
+            households_sum_dict[_] = bill[_].sum()
+
+        sum_row_name = "[2월] 세대 전체 요금 합산"
+        bill = bill.append(
+            pd.Series(households_sum_dict, name=sum_row_name),
+        )
+
+        all_dict = self.calc_all_meter()
+        public_dict = dict()
+
+        public_dict['사용량 (kwh)'] = apt_meter - \
+            bill.loc[sum_row_name]['사용량 (kwh)']
+        public_dict['청구금액 (절사)'] = all_dict['청구금액 (절사)'] - \
+            bill.loc[sum_row_name]['청구금액 (절사)']
+
+        public_row_name = "[2월] 공동사용설비요금"
+        bill = bill.append(
+            pd.Series(public_dict, name=public_row_name)
+        )
+
+        mgmt_bill_name = "[2월] 관리사무소 청구서"
+        bill = bill.append(
+            pd.Series(all_dict, name=mgmt_bill_name)
+        )
+
+        public_bill = bill.loc[public_row_name]['청구금액 (절사)'] / len(
+            households)
+        bill['공동전기사용료'] = [public_bill for _ in range(
+            0, len(households))] + ["-", "-", "-"]
+
+        bill['최종청구금액'] = [public_bill + bill.iloc[_]['청구금액 (절사)'] for _ in range(
+            0, len(households))] + ["-", "-", "-"]
+
+        return bill.fillna(0)
 
 
 @property
@@ -317,3 +392,14 @@ HOUSEHOLD.infra_fund = INFRAFUND
 HOUSEHOLD.infra_fund_process = INFRAFUNDPROCESS
 HOUSEHOLD.bill = BILL
 HOUSEHOLD.bill_process = BILLPROCESS
+
+SingleContract.basic = BASIC
+SingleContract.electricity_rate = ELECTRICITYRATE_PROGRESSIVETAX
+SingleContract.env_fee = ENVFEE
+SingleContract.fuel_cost = FUELCOST
+SingleContract.vat = VAT
+SingleContract.vat_process = VATPROCESS
+SingleContract.infra_fund = INFRAFUND
+SingleContract.infra_fund_process = INFRAFUNDPROCESS
+SingleContract.bill = BILL
+SingleContract.bill_process = BILLPROCESS

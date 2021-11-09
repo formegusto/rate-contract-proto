@@ -324,7 +324,6 @@ def BASIC_PUBLIC(self):
     if self.maximum_power_demand != None:
         charge_applied_power = self.maximum_power_demand *\
             (self.kwh / self.apt_meter)
-        print("요금계약전력", charge_applied_power)
         return self.rate_table[
             self.rate_table['max kWh'] >= self.kwh
         ]['basic'].iloc[0] * charge_applied_power

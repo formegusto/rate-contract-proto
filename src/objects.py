@@ -185,10 +185,10 @@ class ComprehensiveContract(RATECONTRACT):
         public_bill = round(bill.loc[public_row_name]['청구금액 (절사)'] / len(
             households))
         bill['공동전기사용료'] = [public_bill for _ in range(
-            0, len(households))] + ["-", "-", "-"]
+            0, len(households))] + [0, 0, 0]
 
         bill['최종청구금액'] = [public_bill + bill.iloc[_]['청구금액 (절사)'] for _ in range(
-            0, len(households))] + ["-", "-", "-"]
+            0, len(households))] + [0, 0, 0]
 
         return bill.fillna(0)
 
@@ -262,10 +262,10 @@ class SingleContract(RATECONTRACT):
         public_bill = round(bill.loc[public_row_name]['청구금액 (절사)'] / len(
             households))
         bill['공동전기사용료'] = [public_bill for _ in range(
-            0, len(households))] + ["-", "-", "-"]
+            0, len(households))] + [0, 0, 0]
 
         bill['최종청구금액'] = [public_bill + bill.iloc[_]['청구금액 (절사)'] for _ in range(
-            0, len(households))] + ["-", "-", "-"]
+            0, len(households))] + [0, 0, 0]
 
         return bill.fillna(0)
 

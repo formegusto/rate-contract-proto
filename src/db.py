@@ -99,7 +99,6 @@ class DPPSUPPORTER:
         print("### SET SUM DATAS SUCCESS ###")
 
     def get_households(self, rate_type):
-        print(COMPREHENSIVE_HOUSEHOLD_RATE_TABLE)
         rate_table = COMPREHENSIVE_HOUSEHOLD_RATE_TABLE(
             self.now_month) if rate_type == "종합계약" else SINGLE_RATE_TABLE(self.now_month)
         households = list()

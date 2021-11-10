@@ -4,6 +4,7 @@ from src.rate_table import COMPREHENSIVE_PUBLIC_RATE_TABLE, COMPREHENSIVE_RATE_T
 import math
 import pandas as pd
 from src.datas import KEPCO_FEE
+from src.utils import get_season
 
 # set common
 skip_calc = ["사용량 (kwh)"]
@@ -12,17 +13,6 @@ bill_step = ['전기요금계', '4사 5입', '전력산업기반기금 (절사)'
 # set household
 household_name = ["{}01 호".format(_) for _ in range(1, 11)]
 household_kwh = [150, 180, 220, 210, 310, 300, 270, 190, 250, 260]
-
-
-def get_season(month):
-    if month in [12, 1, 2]:
-        return "winter"
-    elif month in [3, 4, 5, 6]:
-        return "spring"
-    elif month in [7, 8]:
-        return "summer"
-    elif month in [9, 10, 11]:
-        return "autumn"
 
 
 class HOUSEHOLD:
@@ -47,6 +37,16 @@ class HOUSEHOLD:
             if _ in skip_calc:
                 continue
             self.fee += self.fee_dict[_]
+
+        # 최소 전기요금계 1000원
+        if self.fee < 1000:
+            self.fee_dict['필수사용량보장공제'] = (self.fee +
+                                          (self.fee_dict['필수사용량보장공제'] * -1) - 1000) * (-1)
+            self.fee = 0
+            for _ in self.fee_dict.keys():
+                if _ in skip_calc:
+                    continue
+                self.fee += self.fee_dict[_]
 
         self.fee_dict['전기요금계'] = self.fee
         self.fee_dict['부가세'] = self.vat

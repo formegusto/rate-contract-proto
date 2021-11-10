@@ -1,7 +1,7 @@
 import pandas as pd
 from functools import reduce
 
-from src.objects import get_season
+from src.utils import get_season
 
 fee_dict = dict()
 

@@ -1,6 +1,8 @@
 import pandas as pd
 from functools import reduce
 
+from src.objects import get_season
+
 fee_dict = dict()
 
 # 주택용전력 (저압) setting
@@ -63,23 +65,33 @@ for _ in fee_dict.values():
     RATE_TABLE = pd.concat([RATE_TABLE, _], ignore_index=True)
 
 # 종합계약 요금표
-COMPREHENSIVE_RATE_TABLE = RATE_TABLE[
-    ((RATE_TABLE['type'] == "주택용 저압") | (RATE_TABLE['type'] == "일반용전력(갑) 1, 고압A, 선택 2")) &
-    (RATE_TABLE['season'] == 'winter')
-]
 
-COMPREHENSIVE_HOUSEHOLD_RATE_TABLE = RATE_TABLE[
-    (RATE_TABLE['type'] == "주택용 저압") &
-    (RATE_TABLE['season'] == 'winter')
-]
 
-COMPREHENSIVE_PUBLIC_RATE_TABLE = RATE_TABLE[
-    (RATE_TABLE['type'] == "일반용전력(갑) 1, 고압A, 선택 2") &
-    (RATE_TABLE['season'] == 'winter')
-]
+def COMPREHENSIVE_RATE_TABLE(now_month):
+    return RATE_TABLE[
+        ((RATE_TABLE['type'] == "주택용 저압") | (RATE_TABLE['type'] == "일반용전력(갑) 1, 고압A, 선택 2")) &
+        (RATE_TABLE['season'] == get_season(now_month))
+    ]
+
+
+def COMPREHENSIVE_HOUSEHOLD_RATE_TABLE(now_month):
+    return RATE_TABLE[
+        (RATE_TABLE['type'] == "주택용 저압") &
+        (RATE_TABLE['season'] == get_season(now_month))
+    ]
+
+
+def COMPREHENSIVE_PUBLIC_RATE_TABLE(now_month):
+    return RATE_TABLE[
+        (RATE_TABLE['type'] == "일반용전력(갑) 1, 고압A, 선택 2") &
+        (RATE_TABLE['season'] == get_season(now_month))
+    ]
 
 # 단일계약 요금표
-SINGLE_RATE_TABLE = RATE_TABLE[
-    (RATE_TABLE['type'] == "주택용 고압") &
-    (RATE_TABLE['season'] == 'winter')
-]
+
+
+def SINGLE_RATE_TABLE(now_month):
+    return RATE_TABLE[
+        (RATE_TABLE['type'] == "주택용 고압") &
+        (RATE_TABLE['season'] == get_season(now_month))
+    ]

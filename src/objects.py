@@ -14,11 +14,23 @@ household_name = ["{}01 호".format(_) for _ in range(1, 11)]
 household_kwh = [150, 180, 220, 210, 310, 300, 270, 190, 250, 260]
 
 
+def get_season(month):
+    if month in [12, 1, 2]:
+        return "winter"
+    elif month in [3, 4, 5, 6]:
+        return "spring"
+    elif month in [7, 8]:
+        return "summer"
+    elif month in [9, 10, 11]:
+        return "autumn"
+
+
 class HOUSEHOLD:
-    def __init__(self, rate_table, name="", kwh=0, ):
+    def __init__(self, now_month, rate_table, name="", kwh=0):
         self.name = name
         self.kwh = kwh
         self.rate_table = rate_table
+        self.now_month = now_month
 
     def calc_meter(self):
         self.fee_dict = {
@@ -81,10 +93,11 @@ class RATECONTRACT:
     def __init__(self, rate_type, now_month):
         self.rate_type = rate_type
         self.now_month = now_month
+        self.season = get_season(now_month)
         if rate_type == "종합계약":
-            self.rate_table = COMPREHENSIVE_RATE_TABLE
+            self.rate_table = COMPREHENSIVE_RATE_TABLE(now_month=now_month)
         else:
-            self.rate_table = SINGLE_RATE_TABLE
+            self.rate_table = SINGLE_RATE_TABLE(now_month=now_month)
 
     def __repr__(self) -> str:
         return "계약 : {}\n".format(self.rate_type) +\
@@ -107,7 +120,8 @@ class PUBLIC:
         self.maximum_power_demand = None
         self.kwh = kwh
         self.rate_type = rate_type
-        self.rate_table = COMPREHENSIVE_PUBLIC_RATE_TABLE if rate_type == "종합계약" else SINGLE_RATE_TABLE
+        self.rate_table = COMPREHENSIVE_PUBLIC_RATE_TABLE(
+            now_month=now_month) if rate_type == "종합계약" else SINGLE_RATE_TABLE(now_month=now_month)
         self.peak_df = peak_df
         self.now_month = now_month
 
@@ -158,13 +172,13 @@ class ComprehensiveContract(RATECONTRACT):
         for _ in bill:
             households_sum_dict[_] = bill[_].sum()
 
-        sum_row_name = "[2월] 세대 전체 요금 합산"
+        sum_row_name = "[{}월] 세대 전체 요금 합산".format(self.now_month)
         bill = bill.append(
             pd.Series(households_sum_dict, name=sum_row_name),
         )
 
         households_kwh = bill.loc[sum_row_name]['사용량 (kwh)']
-        public_row_name = "[2월] 공동사용설비요금"
+        public_row_name = "[{}월] 공동사용설비요금".format(self.now_month)
         public_dict = PUBLIC(rate_type=self.rate_type,
                              apt_meter=apt_meter,
                              kwh=(apt_meter - households_kwh),
@@ -176,10 +190,11 @@ class ComprehensiveContract(RATECONTRACT):
 
         all_sum_dict = dict()
         all_sum_list = [sum_row_name, public_row_name]
+        all_sum_row_name = "[{}월] 관리사무소 청구서".format(self.now_month)
         for _ in bill:
             all_sum_dict[_] = bill.loc[all_sum_list][_].sum()
         bill = bill.append(
-            pd.Series(all_sum_dict, name="[2월] 관리사무소 청구서")
+            pd.Series(all_sum_dict, name=all_sum_row_name)
         )
 
         public_bill = round(bill.loc[public_row_name]['청구금액 (절사)'] / len(
@@ -236,7 +251,7 @@ class SingleContract(RATECONTRACT):
         for _ in bill:
             households_sum_dict[_] = bill[_].sum()
 
-        sum_row_name = "[2월] 세대 전체 요금 합산"
+        sum_row_name = "[{}월] 세대 전체 요금 합산".format(self.now_month)
         bill = bill.append(
             pd.Series(households_sum_dict, name=sum_row_name),
         )
@@ -249,12 +264,12 @@ class SingleContract(RATECONTRACT):
         public_dict['청구금액 (절사)'] = all_dict['청구금액 (절사)'] - \
             bill.loc[sum_row_name]['청구금액 (절사)']
 
-        public_row_name = "[2월] 공동사용설비요금"
+        public_row_name = "[{}월] 공동사용설비요금".format(self.now_month)
         bill = bill.append(
             pd.Series(public_dict, name=public_row_name)
         )
 
-        mgmt_bill_name = "[2월] 관리사무소 청구서"
+        mgmt_bill_name = "[{}월] 관리사무소 청구서".format(self.now_month)
         bill = bill.append(
             pd.Series(all_dict, name=mgmt_bill_name)
         )
@@ -278,8 +293,9 @@ def ENVFEE(self):
 
 @property
 def FUELCOST(self):
+
     unit = KEPCO_FEE['연료비조정액']
-    return int(self.kwh * unit)
+    return 0 if self.now_month >= 9 else int(self.kwh * unit)
 
 
 @property
@@ -303,12 +319,15 @@ def DEDUCTION(self):
         or (self.kwh <= 200) else False
     if is_deduction:
         rate_type = self.rate_table['type'].values[0]
+        month = self.now_month
+        low_rate_table = KEPCO_FEE['필수사용량 보장공제 (월 200 kWh 이하), 저압 (~6)'] if month < 7 else KEPCO_FEE[
+            '필수사용량 보장공제 (월 200 kWh 이하), 저압 (7~)']
         if rate_type == "주택용 저압":
             unit = KEPCO_FEE['필수사용량 보장공제 (월 1,000 kWh 초과), 저압'] if (self.kwh > 1000) \
-                else KEPCO_FEE['필수사용량 보장공제 (월 200 kWh 이하), 저압']
+                else low_rate_table
         else:
             unit = KEPCO_FEE['필수사용량 보장공제 (월 1,000 kWh 초과), 고압'] if (self.kwh > 1000) \
-                else KEPCO_FEE["필수사용량 보장공제 (월 200 kWh 이하), 고압"]
+                else low_rate_table
 
         return (unit * (self.kwh - 1000) if (self.kwh > 1000)
                 else unit) * -1

@@ -59,16 +59,19 @@ class HOUSEHOLD:
 
 def get_const_households(rate_type):
     CONST_HOUSEHOLDS = list()
-    rate_table = COMPREHENSIVE_HOUSEHOLD_RATE_TABLE if rate_type == "종합계약" else SINGLE_RATE_TABLE
+    rate_table = COMPREHENSIVE_HOUSEHOLD_RATE_TABLE(
+        2) if rate_type == "종합계약" else SINGLE_RATE_TABLE(2)
     for idx, kwh in enumerate(household_kwh):
         CONST_HOUSEHOLDS.append(
-            HOUSEHOLD(name=household_name[idx], kwh=kwh, rate_table=rate_table))
+            HOUSEHOLD(name=household_name[idx], kwh=kwh, rate_table=rate_table, now_month=2))
 
     return CONST_HOUSEHOLDS
 
 
 class MGMTOFFICE:
     def __init__(self, rate_type, households=None, now_month=2, APT_METER=3000, peak_df=PEAK_DF):
+        if households == None:
+            households = get_const_households(rate_type=rate_type)
         self.rate_contract = ComprehensiveContract(
             peak_df=peak_df,
             now_month=now_month

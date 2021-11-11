@@ -318,22 +318,21 @@ def INFRAFUND(self):
 
 @property
 def DEDUCTION(self):
-    is_deduction = True if (self.kwh > 1000) \
-        or (self.kwh <= 200) else False
+    is_deduction = True if (self.kwh <= 200) else False
     if is_deduction:
         rate_type = self.rate_table['type'].values[0]
         month = self.now_month
+        low_rate_keyword = "(~6)" if month < 7 else "(~7)"
         low_rate_table = KEPCO_FEE['필수사용량 보장공제 (월 200 kWh 이하), 저압 (~6)'] if month < 7 else KEPCO_FEE[
             '필수사용량 보장공제 (월 200 kWh 이하), 저압 (7~)']
         if rate_type == "주택용 저압":
-            unit = KEPCO_FEE['필수사용량 보장공제 (월 1,000 kWh 초과), 저압'] if (self.kwh > 1000) \
-                else low_rate_table
+            unit = KEPCO_FEE['필수사용량 보장공제 (월 200 kWh 이하), 저압 {}'.format(
+                low_rate_keyword)]
         else:
-            unit = KEPCO_FEE['필수사용량 보장공제 (월 1,000 kWh 초과), 고압'] if (self.kwh > 1000) \
-                else low_rate_table
+            unit = KEPCO_FEE['필수사용량 보장공제 (월 200 kWh 이하), 고압 {}'.format(
+                low_rate_keyword)]
 
-        return (unit * (self.kwh - 1000) if (self.kwh > 1000)
-                else unit) * -1
+        return unit * -1
     else:
         return 0
 
@@ -376,7 +375,7 @@ def ELECTRICITYRATE_PROGRESSIVETAX(self):
         progressive_tax = self.rate_table['fee'].iloc[idx]
         max_kwh = self.rate_table['max kWh'].iloc[idx]
 
-        step_kwh = usage if usage < max_kwh else max_kwh - step_bak
+        step_kwh = usage if self.kwh < max_kwh else max_kwh - step_bak
         rate += int(progressive_tax * step_kwh)
 
         usage -= step_kwh

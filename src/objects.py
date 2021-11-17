@@ -322,7 +322,7 @@ def DEDUCTION(self):
     if is_deduction:
         rate_type = self.rate_table['type'].values[0]
         month = self.now_month
-        low_rate_keyword = "(~6)" if month < 7 else "(~7)"
+        low_rate_keyword = "(~6)" if month < 7 else "(7~)"
         low_rate_table = KEPCO_FEE['필수사용량 보장공제 (월 200 kWh 이하), 저압 (~6)'] if month < 7 else KEPCO_FEE[
             '필수사용량 보장공제 (월 200 kWh 이하), 저압 (7~)']
         if rate_type == "주택용 저압":
